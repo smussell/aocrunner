@@ -14,6 +14,7 @@ import prettierignoreTXT from "../configs/prettierignoreTXT.js"
 import runnerJSON from "../configs/runnerJSON.js"
 import envTXT from "../configs/envTXT.js"
 import readmeMD from "../configs/readmeMD.js"
+import packageSwift from "../configs/packageSwift.js"
 
 import type { Setup } from "../types/common"
 
@@ -24,11 +25,17 @@ const init = async () => {
 
   const setup: Setup = await initPrompt()
 
+  if (setup.language === "swift") {
+    setup.packageManager = "swift"
+  }
+
   const installCmd =
     setup.packageManager === "npm"
       ? "npm i"
       : setup.packageManager === "yarn"
       ? "yarn"
+      : setup.packageManager === "swift" 
+      ? "swift package resolve && npm i"
       : "pnpm install"
 
   const formatCmd =
@@ -36,17 +43,19 @@ const init = async () => {
       ? "npm run format"
       : setup.packageManager === "yarn"
       ? "yarn format"
+      : setup.packageManager === "swift" 
+      ? "swift package format-source-code --allow-writing-to-package-directory"
       : "pnpm format"
 
   const startCmd =
-    setup.packageManager === "npm"
+    setup.packageManager === "npm" || setup.packageManager === "swift"
       ? "npm start"
       : setup.packageManager === "yarn"
       ? "yarn start"
       : "pnpm start"
 
   const dir = setup.name
-  const srcDir = path.join(dir, "src")
+  const srcDir = path.join(dir, setup.language === "swift" ? "" : "src")
 
   if (fs.existsSync(dir)) {
     console.log("Project already exists. Aborted.")
@@ -57,10 +66,15 @@ const init = async () => {
 
   const config = runnerJSON(setup)
 
-  save(dir, "package.json", packageJSON(setup))
-  save(dir, ".prettierrc.json", prettierJSON(setup))
+  if(setup.language === "swift") {
+    save(dir, "Package.swift", packageSwift(setup))
+  } else {
+    save(dir, ".prettierrc.json", prettierJSON(setup))  
+    save(dir, ".prettierignore", prettierignoreTXT(setup))
+  }
+  
   save(dir, ".gitignore", gitignoreTXT(setup))
-  save(dir, ".prettierignore", prettierignoreTXT(setup))
+  save(dir, "package.json", packageJSON(setup))
   save(dir, ".aocrunner.json", config)
   save(dir, ".env", envTXT)
   save(dir, "README.md", readmeMD(setup, startCmd, installCmd, config))

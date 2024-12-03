@@ -5,7 +5,7 @@ import chokidar from "chokidar"
 import kleur from "kleur"
 import getAllFiles from "../utils/getAllFiles.js"
 import buildSource from "./processes/buildSource.js"
-import runSolution from "./processes/runSolution.js"
+import runSolution, { runSwift }  from "./processes/runSolution.js"
 import getLatestVersion from "./processes/getLatestVersion.js"
 import copy from "../io/copy.js"
 import { readConfig, saveConfig } from "../io/config.js"
@@ -140,6 +140,7 @@ const send = async (config: Config, dayNum: number, part: 1 | 2) => {
 const dev = (dayRaw: string | undefined) => {
   const day = dayRaw && (dayRaw.match(/\d+/) ?? [])[0]
   const config = readConfig()
+  const sourceDir = config.language === "swift" ? "Sources" : "src"
 
   if (day === undefined) {
     console.log(kleur.red("No day specified."))
@@ -154,14 +155,20 @@ const dev = (dayRaw: string | undefined) => {
   }
 
   const dayDir = `day${String(dayNum).padStart(2, "0")}`
-  const fromDir = path.join("src", "template")
-  const toDir = path.join("src", dayDir)
+  const fromDir = path.join(sourceDir, "template")
+  const toDir = path.join(sourceDir, dayDir)
+  
   const indexFile = path.join(
-    config.language === "ts" ? "dist" : "src",
+    config.language === "ts" ? "dist" : sourceDir,
     dayDir,
     "index.js",
   )
-  const inputPath = path.join(toDir, "input.txt")
+  
+  let inputPath = path.join(toDir, "input.txt")
+  if (config.language === "swift") {
+    inputPath = path.join(toDir, "Data", "input.txt")
+  }
+
   const dayReadmePath = path.join(toDir, "README.md")
 
   if (!fs.existsSync(fromDir)) {
@@ -172,6 +179,28 @@ const dev = (dayRaw: string | undefined) => {
     console.log("Creating from template...")
     copy(fromDir, toDir)
 
+    if (config.language === "swift") {
+      fs.mkdirSync(path.join(toDir, "Data"))
+
+      const content = fs.readFileSync("Package.swift").toString()
+      fs.writeFileSync(
+        "Package.swift",
+        content.replace(
+          "// HACKY TOKEN FOR INSERTING TARGETS",
+          `
+    , .executableTarget(
+    name: "${dayDir}",
+    dependencies: dependencies,
+    resources: [.process("Data")],
+    exclude: ["README.md"]
+    swiftSettings: [.enableUpcomingFeature("BareSlashRegexLiterals")]
+    )
+    // HACKY TOKEN FOR INSERTING TARGETS
+`,
+        ),
+      )
+    }
+
     fs.writeFileSync(inputPath, "")
 
     if (!fs.existsSync(dayReadmePath)) {
@@ -181,16 +210,20 @@ const dev = (dayRaw: string | undefined) => {
 
   getInput(config.year, dayNum, inputPath)
 
-  const files = getAllFiles("src")
+  const files = getAllFiles(sourceDir)
 
   if (config.language === "ts") {
     buildSource(files)
   }
 
-  runSolution(dayNum, indexFile)
+  if (config.language === "swift") {
+    runSwift(dayNum, dayDir)
+  } else {
+    runSolution(dayNum, indexFile)
+  }
 
   const reload = (file: string) => {
-    if (![".js", ".ts", ".mjs"].includes(path.parse(file).ext)) {
+    if (![".js", ".ts", ".mjs", "swift"].includes(path.parse(file).ext)) {
       return
     }
 
@@ -200,7 +233,11 @@ const dev = (dayRaw: string | undefined) => {
       buildSource(file)
     }
 
-    runSolution(dayNum, indexFile)
+    if (config.language === "swift") {
+      runSwift(dayNum, dayDir)
+    } else {
+      runSolution(dayNum, indexFile)
+    }
 
     showInfo()
 
@@ -208,7 +245,7 @@ const dev = (dayRaw: string | undefined) => {
   }
 
   chokidar
-    .watch("src", { ignoreInitial: true })
+    .watch(sourceDir, { ignoreInitial: true })
     .on("add", reload)
     .on("change", reload)
 

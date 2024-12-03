@@ -44,6 +44,7 @@ const initPrompt = () => {
         choices: [
           { title: "JavaScript", value: "js" },
           { title: "TypeScript", value: "ts" },
+          { title: "Swift", value: "swift" },
         ],
         initial: 0,
       },
@@ -56,7 +57,7 @@ const initPrompt = () => {
         inactive: "no",
       },
       {
-        type: "toggle",
+        type: (prev) => (prev === "swift" ? null : "toggle"),
         name: "semicolons",
         message: "Semicolons",
         initial: true,
@@ -70,7 +71,7 @@ const initPrompt = () => {
         initial: author,
       },
       {
-        type: "select",
+        type: (prev) => (prev === "swift" ? null : "select"),
         name: "packageManager",
         message: "Package manager",
         choices: [

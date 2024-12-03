@@ -12,6 +12,15 @@ const gitignoreTXT = ({ language }: Setup) => {
     .idea
     .vscode
     .env
+    /.build
+    /Packages
+    xcuserdata/
+    DerivedData/
+    .swiftpm/configuration/registries.json
+    .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
+    .netrc
+    lcov.info
+    Package.resolved
     ${language === "ts" ? "dist" : ""}
   `
 }
